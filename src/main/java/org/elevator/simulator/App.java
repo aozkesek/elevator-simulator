@@ -3,12 +3,33 @@
  */
 package org.elevator.simulator;
 
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
 public class App {
-    public String getGreeting() {
-        return "Hello world.";
-    }
 
     public static void main(String[] args) {
-        System.out.println(new App().getGreeting());
+
+        ExecutorService elevatorExecutor =
+                Executors.newFixedThreadPool(2);
+
+        Elevator elevator = new Elevator(10, 12);
+        elevatorExecutor.submit(elevator);
+
+        PassengerGenerator passengerGenerator = new PassengerGenerator(elevator);
+        elevatorExecutor.submit(passengerGenerator);
+
+        try {
+            elevatorExecutor.awaitTermination(1, TimeUnit.MINUTES);
+
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        elevatorExecutor.shutdownNow();
+        System.exit(0);
+
     }
 }
