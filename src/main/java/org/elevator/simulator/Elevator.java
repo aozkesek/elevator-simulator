@@ -1,8 +1,8 @@
 package org.elevator.simulator;
 
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static java.lang.System.in;
 import static java.lang.System.out;
 
 public class Elevator implements Runnable {
@@ -139,7 +139,7 @@ public class Elevator implements Runnable {
 
                 return false;
         }
-        
+
         private void goFor(Direction destDirection) {
 
                 switch (destDirection) {
@@ -152,6 +152,31 @@ public class Elevator implements Runnable {
                                 break;
                 }
 
+        }
+
+        private boolean isWaitingFor(Map.Entry<Integer, Passenger> entry,
+                                     Direction destDirection) {
+
+                return entry.getValue().getFloor() < currentFloor
+                        && destDirection == Direction.DOWN
+                        || entry.getValue().getFloor() > currentFloor
+                        && destDirection == Direction.UP;
+        }
+
+        private boolean isSomeoneExistFor(Direction destDirection) {
+
+                return 0 < waitingPassengers.entrySet().parallelStream()
+                        .filter(e -> isWaitingFor(e, destDirection))
+                        .count()
+                        || !passengers.isEmpty();
+        }
+
+        private Direction swapDirection(Direction destDirection) {
+                if (destDirection == Direction.DOWN)
+                        return Direction.UP;
+                else if (destDirection == Direction.UP)
+                        return Direction.DOWN;
+                return Direction.IDLE;
         }
 
         private void doService(Direction destDirection) {
@@ -173,9 +198,18 @@ public class Elevator implements Runnable {
                         // now folks can get in
                         pickupPassengers(destDirection);
 
+                        if (!isSomeoneExistFor(destDirection)) {
+                                destDirection = swapDirection(destDirection);
+                                // direction is changed, pick up again
+                                pickupPassengers(destDirection);
+                        }
+
                         goFor(destDirection);
 
                 }
+
+                // report IDLE
+                report();
 
         }
 
