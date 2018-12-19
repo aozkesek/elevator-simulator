@@ -43,7 +43,7 @@ public class Elevator implements Runnable {
         }
 
         public void queuePassenger(Passenger passenger) {
-                out.println(passenger);
+                out.println(passenger + " is queued.");
                 waitingPassengers.put(passenger.hashCode(), passenger);
         }
 
@@ -103,9 +103,6 @@ public class Elevator implements Runnable {
 
         private void dropPassengers() {
 
-                if (passengers.isEmpty())
-                        return;
-
                 passengers.forEach((h, p) -> {
                         // we reached the floor, now get out
                         if (p.getDestFloor() == currentFloor) {
@@ -116,10 +113,6 @@ public class Elevator implements Runnable {
         }
 
         private void pickupPassengers(Direction destDirection) {
-
-                // no one! Ok, im out
-                if (waitingPassengers.isEmpty())
-                        return;
 
                 // sorry, no available room for someone new
                 if (passengers.size() == capacity)
@@ -134,56 +127,28 @@ public class Elevator implements Runnable {
                                 p.getDirection() == destDirection)
                         {
                                 out.println("<<< getting in " + p);
-                                passengers.put(p.hashCode(), p);
                                 waitingPassengers.remove(p.hashCode());
+                                passengers.put(p.hashCode(), p);
                         } });
         }
 
-        private boolean someoneNeededService() {
+        private boolean isSomeoneNeedService() {
 
                 if (!passengers.isEmpty() || !waitingPassengers.isEmpty())
                         return true;
 
                 return false;
         }
-
-        private boolean isPersonExistFor(Direction destDirection, int passFloor) {
-                return destDirection == Direction.DOWN && passFloor < currentFloor
-                        || destDirection == Direction.UP && passFloor > currentFloor;
-        }
-
-        private boolean isSomeoneWaitingFor(Direction destDirection) {
-
-                boolean outside = !waitingPassengers.isEmpty()
-                        && waitingPassengers.search(2,
-                        (h,p) -> isPersonExistFor(destDirection, p.getFloor()));
-
-                if (outside)
-                        return true;
-
-                boolean inside = !passengers.isEmpty()
-                        && passengers.search(2,
-                        (h,p) -> isPersonExistFor(destDirection, p.getDestFloor()));
-
-                return outside || inside;
-
-        }
-
+        
         private void goFor(Direction destDirection) {
 
                 switch (destDirection) {
                         case UP:
-                                if (isSomeoneWaitingFor(destDirection))
-                                        goUp();
-                                else
-                                        goDown();
+                                goUp();
                                 break;
 
                         case DOWN:
-                                if (isSomeoneWaitingFor(destDirection))
-                                        goDown();
-                                else
-                                        goUp();
+                                goDown();
                                 break;
                 }
 
@@ -191,27 +156,25 @@ public class Elevator implements Runnable {
 
         private void doService(Direction destDirection) {
 
-                while (!outOfService && someoneNeededService()) {
+                while (!outOfService && isSomeoneNeedService()) {
+
+                        if (currentFloor == floor)
+                                // we are at top floor, return down
+                                destDirection = Direction.DOWN;
+                        else if (currentFloor == 0)
+                                // we are at ground/basement floor
+                                destDirection = Direction.UP;
+
+                        report();
+
                         // let them get out first
                         dropPassengers();
 
-                        if (currentFloor == floor) {
-                                // we are at top floor, return down
-                                destDirection = Direction.DOWN;
-                                // our service is up here, get out, catch a rocket
-                                passengers.clear();
-                        } else if (currentFloor == 0) {
-                                // we are at ground/basement floor
-                                destDirection = Direction.UP;
-                                // what do you wait for, get out folks
-                                passengers.clear();
-                        }
-
                         // now folks can get in
                         pickupPassengers(destDirection);
+
                         goFor(destDirection);
 
-                        report();
                 }
 
         }

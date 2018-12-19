@@ -22,10 +22,10 @@ public class App {
         elevatorExecutor.submit(passengerGenerator);
 
         try {
-            elevatorExecutor.awaitTermination(1, TimeUnit.MINUTES);
+            elevatorExecutor.awaitTermination(3, TimeUnit.MINUTES);
 
         } catch (InterruptedException e) {
-            e.printStackTrace();
+
         }
 
         elevatorExecutor.shutdownNow();
