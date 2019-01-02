@@ -1,29 +1,34 @@
 package org.elevator.simulator;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import static java.lang.System.out;
 
 public class Elevator implements Runnable {
 
-        private Object lock = new Object();
+        private static Object lock = new Object();
 
-        private int floor;
+        private static int floor;
+        private static int capacity;
+
         private int speedLimit;
-        private int capacity;
         private int currentFloor;
-        private volatile boolean outOfService;
+        private long elevatorId;
+        private static volatile boolean outOfService;
         private Direction direction;
-        private ConcurrentHashMap<Integer, Passenger> passengers;
-        private ConcurrentHashMap<Integer, Passenger> waitingPassengers;
+        private List<Passenger> passengers;
+        private WaitingPassengerQueue waitingPassengerQueue;
 
+        public Elevator(int maxFloor, int capacity,
+                        WaitingPassengerQueue waitingPassengerQueue) {
 
-        public Elevator(int maxFloor, int maxCapacity) {
-                passengers = new ConcurrentHashMap<>();
-                waitingPassengers = new ConcurrentHashMap<>();
                 floor = maxFloor;
-                capacity = maxCapacity;
+                this.capacity = capacity;
+                this.waitingPassengerQueue = waitingPassengerQueue;
+
+                passengers = new ArrayList<>();
                 direction = Direction.IDLE;
                 // ground floor
                 currentFloor = 0;
@@ -32,19 +37,34 @@ public class Elevator implements Runnable {
                 speedLimit = 1300;
         }
 
-        public void setOutOfService() {
+        public static boolean isOutOfService() {
+                return outOfService;
+        }
+
+        public static void setOutOfService() {
                 synchronized (lock) {
                         outOfService = true;
                 }
         }
 
-        public int getFloor() {
+        public static int getFloor() {
                 return floor;
         }
 
-        public void queuePassenger(Passenger passenger) {
-                out.println(passenger + " is queued.");
-                waitingPassengers.put(passenger.hashCode(), passenger);
+        public long getElevatorId() {
+                return elevatorId;
+        }
+
+        public Direction getDirection() {
+                return direction;
+        }
+
+        public int getCurrentFloor() {
+                return currentFloor;
+        }
+
+        public boolean isAvailableRoom() {
+                return passengers.size() < capacity;
         }
 
         private void limitSpeed() {
@@ -57,10 +77,18 @@ public class Elevator implements Runnable {
 
         }
 
+        public void addPassenger(Passenger passenger) {
+                out.println(this + " has total " + passengers.size());
+                if (passengers.size() < capacity) {
+                        out.println(passenger + " is getting into " + this);
+                        passengers.add(passenger);
+                }
+        }
+
         private void goUp() {
 
                 // no one, skip
-                if (waitingPassengers.isEmpty() && passengers.isEmpty()) {
+                if (waitingPassengerQueue.isEmpty() && passengers.isEmpty()) {
                         direction = Direction.IDLE;
                         return;
                 }
@@ -76,7 +104,7 @@ public class Elevator implements Runnable {
         private void goDown() {
 
                 // no one, skip
-                if (waitingPassengers.isEmpty() && passengers.isEmpty()) {
+                if (waitingPassengerQueue.isEmpty() && passengers.isEmpty()) {
                         direction = Direction.IDLE;
                         return;
                 }
@@ -102,39 +130,37 @@ public class Elevator implements Runnable {
         }
 
         private void dropPassengers() {
+                List<Passenger> getOuts = new ArrayList<>();
+                passengers
+                        .forEach((p) -> {
+                                // we reached the floor, now get out
+                                if (p.getDestFloor() != currentFloor)
+                                        return;
 
-                passengers.forEach((h, p) -> {
-                        // we reached the floor, now get out
-                        if (p.getDestFloor() == currentFloor) {
-                                out.println(">>> getting out " + p);
-                                passengers.remove(p.hashCode());
-                        } });
+                                out.println(">>> " + p + " is getting out from "
+                                        + this);
+                                getOuts.add(p);
+                        });
 
+                if (getOuts.size() > 0)
+                        passengers.removeAll(getOuts);
         }
 
         private void pickupPassengers(Direction destDirection) {
 
                 // sorry, no available room for someone new
-                if (passengers.size() == capacity)
+                if (passengers.size() == capacity) {
+                        out.println(this + ": sorry, no room for new one.");
                         return;
+                }
 
                 // get in folks,
-                waitingPassengers.forEach((h, p) -> {
-                        // collect only ones who wants to go same direction
-                        // till enough room
-                        if (passengers.size() < capacity &&
-                                p.getFloor() == currentFloor &&
-                                p.getDirection() == destDirection)
-                        {
-                                out.println("<<< getting in " + p);
-                                waitingPassengers.remove(p.hashCode());
-                                passengers.put(p.hashCode(), p);
-                        } });
+                waitingPassengerQueue.pickUp(this, destDirection);
         }
 
         private boolean isSomeoneNeedService() {
 
-                if (!passengers.isEmpty() || !waitingPassengers.isEmpty())
+                if (!passengers.isEmpty() || !waitingPassengerQueue.isEmpty())
                         return true;
 
                 return false;
@@ -154,20 +180,10 @@ public class Elevator implements Runnable {
 
         }
 
-        private boolean isWaitingFor(Map.Entry<Integer, Passenger> entry,
-                                     Direction destDirection) {
-
-                return entry.getValue().getFloor() < currentFloor
-                        && destDirection == Direction.DOWN
-                        || entry.getValue().getFloor() > currentFloor
-                        && destDirection == Direction.UP;
-        }
-
         private boolean isSomeoneExistFor(Direction destDirection) {
 
-                return 0 < waitingPassengers.entrySet().parallelStream()
-                        .filter(e -> isWaitingFor(e, destDirection))
-                        .count()
+                return waitingPassengerQueue
+                        .isPassengerWaitingFor(destDirection, currentFloor)
                         || !passengers.isEmpty();
         }
 
@@ -179,9 +195,24 @@ public class Elevator implements Runnable {
                 return Direction.IDLE;
         }
 
+        public void report() {
+                out.print(this + " is going to " + direction
+                        + ", currently at " + currentFloor);
+                if (waitingPassengerQueue.size() > 0)
+                        out.print(", total " + waitingPassengerQueue.size()
+                                + " is/are waiting");
+                if (passengers.size() > 0)
+                        out.print(", total " + passengers.size()
+                                + " is/are getting service now.");
+                out.println();
+        }
+
         private void doService(Direction destDirection) {
 
                 while (!outOfService && isSomeoneNeedService()) {
+
+                        // let them get out first
+                        dropPassengers();
 
                         if (currentFloor == floor)
                                 // we are at top floor, return down
@@ -190,10 +221,9 @@ public class Elevator implements Runnable {
                                 // we are at ground/basement floor
                                 destDirection = Direction.UP;
 
-                        report();
+                        direction = destDirection;
 
-                        // let them get out first
-                        dropPassengers();
+                        report();
 
                         // now folks can get in
                         pickupPassengers(destDirection);
@@ -213,53 +243,40 @@ public class Elevator implements Runnable {
 
         }
 
-        public void report() {
-                out.println("Elevator is going " + direction
-                        + " | currently at " + currentFloor
-                        + " | total persons waiting " + waitingPassengers.size()
-                        + " | total persons getting " + passengers.size()
-                );
-        }
-
         @Override
         public void run() {
+
+                elevatorId = Thread.currentThread().getId();
+
                 // check constantly is someone waiting for
                 while (!outOfService) {
 
                         Thread.yield();
 
-                        if (waitingPassengers.isEmpty())
+                        if (waitingPassengerQueue.isEmpty())
                                 continue;
 
-                        Passenger passenger = waitingPassengers
-                                .elements()
-                                .nextElement();
+                        Passenger passenger = waitingPassengerQueue
+                                .getFirst(this);
+
+                        if (passenger == null
+                                || passenger.getElevatorId() != elevatorId)
+                                continue;
 
                         Direction initialDirection =
                                 getInitialDirectionFor(passenger);
                         Direction destDirection = initialDirection;
 
-                        // ok someone is waiting,
-                        switch (initialDirection) {
-                                case UP:
-                                        goUp();
-                                        break;
-
-                                case DOWN:
-                                        goDown();
-                                        break;
-
-                                case IDLE:
-                                        destDirection = passenger.getDirection();
-                                        break;
-                        }
-
+                        if (destDirection == Direction.IDLE)
+                                destDirection = passenger.getDirection();
 
                         doService(destDirection);
 
-                        // ooo dear, no one!, get some rest
-
-
                 }
+        }
+
+        @Override
+        public String toString() {
+                return "Elevator-" + elevatorId;
         }
 }

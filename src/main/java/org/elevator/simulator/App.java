@@ -3,30 +3,68 @@
  */
 package org.elevator.simulator;
 
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+
+import static java.lang.System.out;
 
 public class App {
 
     public static void main(String[] args) {
 
+        int elevatorCount = 1;
+        int maxFloor = 10;
+        int capacity = 6;
+        int pgInterval = 10;
+        int simInterval = 1;
+
+        switch (args.length) {
+            case 5:
+                simInterval = Integer.parseInt(args[4]);
+
+            case 4:
+                pgInterval = Integer.parseInt(args[3]);
+
+            case 3:
+                capacity = Integer.parseInt(args[2]);
+
+            case 2:
+                maxFloor = Integer.parseInt(args[1]);
+
+            case 1:
+                elevatorCount = Integer.parseInt(args[0]);
+
+        }
+
+        out.println("elevatorCount = " + elevatorCount +
+                ", maxFloor = " + maxFloor +
+                ", capacity = " + capacity +
+                ", pgInterval = " + pgInterval +
+                ", simInterval = " + simInterval);
+
+        WaitingPassengerQueue waitingPassengerQueue =
+                new WaitingPassengerQueue();
+
         ExecutorService elevatorExecutor =
-                Executors.newFixedThreadPool(2);
+                Executors.newFixedThreadPool(elevatorCount + 1);
 
-        Elevator elevator = new Elevator(10, 12);
-        elevatorExecutor.submit(elevator);
+        for (int i = 0; i < elevatorCount; i++)
+            elevatorExecutor.submit(
+                    new Elevator(maxFloor, capacity, waitingPassengerQueue));
 
-        PassengerGenerator passengerGenerator = new PassengerGenerator(elevator);
+        PassengerGenerator passengerGenerator =
+                new PassengerGenerator(waitingPassengerQueue, pgInterval);
         elevatorExecutor.submit(passengerGenerator);
 
         try {
-            elevatorExecutor.awaitTermination(3, TimeUnit.MINUTES);
+            elevatorExecutor.awaitTermination(simInterval, TimeUnit.MINUTES);
 
         } catch (InterruptedException e) {
 
         }
+
+        Elevator.setOutOfService();
 
         elevatorExecutor.shutdownNow();
         System.exit(0);

@@ -4,17 +4,22 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class Passenger {
 
+    private Object lock;
     private int floor;
     private int destFloor;
+    private volatile long elevatorId;
 
-    public Passenger(Elevator elevator) {
+    public Passenger() {
         ThreadLocalRandom random = ThreadLocalRandom.current();
 
-        floor = random.nextInt(elevator.getFloor());
-        destFloor = random.nextInt(elevator.getFloor());
+        lock = new Object();
+
+        elevatorId = -1;
+        floor = random.nextInt(Elevator.getFloor());
+        destFloor = random.nextInt(Elevator.getFloor());
+
         while (floor == destFloor)
-            destFloor = random.nextInt(elevator.getFloor());
-         elevator.queuePassenger(this);
+            destFloor = random.nextInt(Elevator.getFloor());
     }
 
     public int getDestFloor() {
@@ -32,8 +37,19 @@ public class Passenger {
         return floor;
     }
 
+    public void setElevatorId(long elevatorId) {
+        synchronized (lock) {
+            this.elevatorId = elevatorId;
+        }
+    }
+
+    public long getElevatorId() {
+        return elevatorId;
+    }
+
     @Override
     public String toString() {
-        return String.format("<Passenger: %1$d, %2$d, %3$s>", floor, destFloor, getDirection());
+        return String.format("<Passenger: %1$d, %2$d, %3$s>",
+                floor, destFloor, getDirection());
     }
 }

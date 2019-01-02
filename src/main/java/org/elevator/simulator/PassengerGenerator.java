@@ -4,28 +4,30 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class PassengerGenerator implements Runnable {
 
-    private Elevator elevator;
+    private WaitingPassengerQueue waitingPassengerQueue;
+    private int interval;
 
-
-    public PassengerGenerator(Elevator elevator) {
-        this.elevator = elevator;
+    public PassengerGenerator(WaitingPassengerQueue waitingPassengerQueue,
+                              int interval) {
+        this.waitingPassengerQueue = waitingPassengerQueue;
+        this.interval = interval;
     }
 
     @Override
     public void run() {
         ThreadLocalRandom random = ThreadLocalRandom.current();
 
-        while (true) {
+        while (!Elevator.isOutOfService()) {
 
             try {
-                Thread.sleep(random.nextInt(15) * 1000);
-                new Passenger(elevator);
+                Thread.sleep(random.nextInt(interval) * 1000);
+                if (!Elevator.isOutOfService())
+                    waitingPassengerQueue.add(new Passenger());
             } catch (InterruptedException e) {
 
             }
 
         }
-
 
     }
 
