@@ -1,55 +1,34 @@
 package org.elevator.simulator;
 
-import java.util.concurrent.ThreadLocalRandom;
+class Passenger {
 
-public class Passenger {
-
-    private Object lock;
     private int floor;
-    private int destFloor;
-    private volatile long elevatorId;
+    private int destination;
 
-    public Passenger() {
-        ThreadLocalRandom random = ThreadLocalRandom.current();
+    Passenger() {
+        int floors = Elevator.getFloors();
+        floor = RandomGenerator.nextInt(floors);
+        destination = RandomGenerator.nextInt(floors);
 
-        lock = new Object();
-
-        elevatorId = -1;
-        floor = random.nextInt(Elevator.getFloor());
-        destFloor = random.nextInt(Elevator.getFloor());
-
-        while (floor == destFloor)
-            destFloor = random.nextInt(Elevator.getFloor());
+        while (floor == destination)
+            destination = RandomGenerator.nextInt(floors);
     }
 
-    public int getDestFloor() {
-        return destFloor;
+    int getDestination() {
+        return destination;
     }
 
-    public Direction getDirection() {
-        if (destFloor > floor)
-            return Direction.UP;
-        else
-            return Direction.DOWN;
-    }
-
-    public int getFloor() {
+    int getFloor() {
         return floor;
     }
 
-    public void setElevatorId(long elevatorId) {
-        synchronized (lock) {
-            this.elevatorId = elevatorId;
-        }
-    }
-
-    public long getElevatorId() {
-        return elevatorId;
+    Direction getDirection() {
+        return (destination > floor) ? Direction.UP : Direction.DOWN;
     }
 
     @Override
     public String toString() {
-        return String.format("<Passenger: %1$d, %2$d, %3$s>",
-                floor, destFloor, getDirection());
+        return String.format("[P%1$d: %2$d|%3$d|%4$s]",
+            hashCode(), floor, destination, getDirection());
     }
 }

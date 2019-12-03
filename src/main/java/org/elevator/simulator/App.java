@@ -3,6 +3,7 @@
  */
 package org.elevator.simulator;
 
+import java.sql.Time;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -13,7 +14,7 @@ public class App {
 
     public static void main(String[] args) {
 
-        int elevatorCount = 1;
+        int elevatorCount = 2;
         int maxFloor = 10;
         int capacity = 6;
         int pgInterval = 10;
@@ -43,30 +44,23 @@ public class App {
                 ", pgInterval = " + pgInterval +
                 ", simInterval = " + simInterval);
 
-        WaitingPassengerQueue waitingPassengerQueue =
-                new WaitingPassengerQueue();
-
-        ExecutorService elevatorExecutor =
+        ExecutorService taskExecutor =
                 Executors.newFixedThreadPool(elevatorCount + 1);
 
         for (int i = 0; i < elevatorCount; i++)
-            elevatorExecutor.submit(
-                    new Elevator(maxFloor, capacity, waitingPassengerQueue));
+            taskExecutor.execute(new Elevator(maxFloor, capacity));
 
-        PassengerGenerator passengerGenerator =
-                new PassengerGenerator(waitingPassengerQueue, pgInterval);
-        elevatorExecutor.submit(passengerGenerator);
+        PassengerGenerator passengerGenerator = new PassengerGenerator(pgInterval);
+        taskExecutor.execute(passengerGenerator);
 
-        try {
-            elevatorExecutor.awaitTermination(simInterval, TimeUnit.MINUTES);
-
-        } catch (InterruptedException e) {
-
-        }
+        try { Thread.sleep(simInterval * 1000 * 60); }
+        catch(InterruptedException e) { }
 
         Elevator.setOutOfService();
 
-        elevatorExecutor.shutdownNow();
+        taskExecutor.shutdown();
+        try { taskExecutor.awaitTermination(simInterval, TimeUnit.MINUTES); }
+        catch (InterruptedException e) { }
         System.exit(0);
 
     }

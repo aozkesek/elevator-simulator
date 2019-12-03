@@ -1,30 +1,25 @@
 package org.elevator.simulator;
 
-import java.util.concurrent.ThreadLocalRandom;
+import static java.lang.System.out;
 
-public class PassengerGenerator implements Runnable {
+final class PassengerGenerator implements Runnable {
 
-    private WaitingPassengerQueue waitingPassengerQueue;
     private int interval;
 
-    public PassengerGenerator(WaitingPassengerQueue waitingPassengerQueue,
-                              int interval) {
-        this.waitingPassengerQueue = waitingPassengerQueue;
+    public PassengerGenerator(int interval) {
         this.interval = interval;
     }
 
     @Override
     public void run() {
-        ThreadLocalRandom random = ThreadLocalRandom.current();
 
         while (!Elevator.isOutOfService()) {
-
             try {
-                Thread.sleep(random.nextInt(interval) * 1000);
+                Thread.sleep(RandomGenerator.nextInt(interval) * 1000);
                 if (!Elevator.isOutOfService())
-                    waitingPassengerQueue.add(new Passenger());
+                    WaitingQueue.add(new Passenger());
             } catch (InterruptedException e) {
-
+                out.println(e.getMessage());
             }
 
         }
